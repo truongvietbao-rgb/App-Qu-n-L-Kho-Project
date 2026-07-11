@@ -1,6 +1,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Quản lý Kho & Doanh thu — 1A INK</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#eef1fb; --panel:#ffffff; --panel2:#f4f6fc; --line:#e2e7f3;
@@ -77,14 +78,27 @@
   #lockBtn.owner{background:var(--green)} #lockBtn.emp{background:#8a93a6}
   .mode-note{font-size:12px;color:var(--muted)}
   @media(max-width:560px){ main{padding:12px} .card{padding:13px} h1{font-size:16px} }
+  /* --- Màn hình đăng nhập --- */
+  #authOverlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(160deg,#efeafd,#e7ecfb)}
+  #authOverlay.hidden{display:none}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;box-shadow:0 20px 60px rgba(90,80,160,.25)}
+  .auth-card h2{margin:0 0 4px;font-size:19px}
+  .auth-sub{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.5}
+  .auth-card label{margin-top:12px}
+  .auth-card input{margin-top:2px}
+  .auth-err{color:var(--red);font-size:13px;min-height:18px;margin:8px 0}
+  .auth-card button.act{width:100%;margin-top:6px}
 </style>
 
 <header>
   <h1>🧪 Quản lý Kho & Doanh thu — <span>1A INK</span></h1>
-  <div class="sub">Sản xuất · Nguyên liệu · Bán hàng · Doanh thu — dữ liệu lưu ngay trên máy này</div>
+  <div class="sub">Sản xuất · Nguyên liệu · Bán hàng · Doanh thu — dữ liệu chung trên mây, nhiều người dùng chung</div>
   <div id="lockBar">
     <button id="lockBtn" onclick="toggleLock()">🔓 Chế độ CHỦ</button>
     <span class="mode-note" id="modeNote"></span>
+    <span class="mode-note" id="syncDot" style="margin-left:auto">⏳ Đang kết nối…</span>
+    <span class="mode-note" id="userEmail"></span>
+    <button class="ghost" onclick="doLogout()" style="padding:6px 10px">Đăng xuất</button>
   </div>
   <nav id="nav">
     <button data-tab="tongquan" class="active">📊 Tổng quan</button>
@@ -297,7 +311,7 @@
 
   <!-- ============ CÀI ĐẶT ============ -->
   <section id="tab-caidat" class="tab">
-    <div class="card">
+    <div class="card" style="display:none">
       <h2>🔐 Mật khẩu chủ (phân quyền nhân viên)</h2>
       <div class="row">
         <div><label>Đặt / đổi mật khẩu chủ (≥ 4 ký tự)</label><input type="password" id="newPin" placeholder="nhập mật khẩu mới"></div>
@@ -348,6 +362,19 @@
   </section>
 </main>
 
+<div id="authOverlay">
+  <div class="auth-card">
+    <h2>🔐 Kho INK — Đăng nhập</h2>
+    <p class="auth-sub">Nhập email &amp; mật khẩu được cấp để vào app dùng chung. Chỉ người có tài khoản mới xem được số liệu.</p>
+    <label>Email</label>
+    <input id="authEmail" type="email" autocomplete="username" placeholder="email@vidu.com">
+    <label>Mật khẩu</label>
+    <input id="authPass" type="password" autocomplete="current-password" placeholder="mật khẩu">
+    <div class="auth-err" id="authErr"></div>
+    <button class="act" id="authBtn" onclick="doLogin()">Đăng nhập</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -357,6 +384,15 @@
    ========================================================================= */
 const KEY = "kho_ink_v1";
 const LOW_STOCK = 10;   // còn ≤ 10 chai -> cảnh báo Sắp hết hàng (màu cam)
+
+/* ===== Cấu hình đám mây (Supabase) — dùng chung số liệu cho nhiều người ===== */
+const SB_URL = "https://rltielxllijoqcvxkmyl.supabase.co";
+const SB_KEY = "sb_publishable_D27UJvVhkxISgoqDlAYIaQ_t5bHt3gp";
+const OWNER_EMAILS = ["truongvietbao@gmail.com"]; // email có quyền CHỦ (viết thường); còn lại là nhân viên
+const sb = (window.supabase && supabase.createClient) ? supabase.createClient(SB_URL, SB_KEY) : null;
+const CLIENT_ID = "c" + Math.random().toString(36).slice(2) + Date.now();
+let currentUser = null;
+let cloudReady = false;   // true khi đã nối mây xong -> mới cho đẩy dữ liệu lên
 
 /* ---- Dữ liệu mặc định: lấy từ tài liệu gốc "CÁC THƯƠNG HIỆU VÀ GIÁ" ---- */
 const SEED_PRODUCTS = [
@@ -420,7 +456,7 @@ function load(){
     sales: [],
   };
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); schedulePush(); }
 function migrate(){
   let changed=false;
   if(!db.mig1){ db.products.forEach(p=>{ if(RENAME[p.name]){ p.name=RENAME[p.name]; changed=true; } }); db.mig1=true; changed=true; }
@@ -507,19 +543,15 @@ function applyMode(){
   btn.textContent = owner ? "🔓 Đang là CHỦ — bấm để khoá" : "🔒 Đang là NHÂN VIÊN — bấm để mở";
   btn.className = owner ? "owner" : "emp";
   $("modeNote").textContent = owner
-    ? "Chế độ chủ: xem/sửa/xoá được hết."
-    : (hasPin()? "Chế độ nhân viên: đã ẩn doanh thu, báo cáo, khách hàng, cài đặt, nút xoá; không sửa được giá bán."
-               : "Chưa đặt mật khẩu chủ — vào ⚙️ Cài đặt để đặt.");
+    ? "Chế độ CHỦ: xem/sửa/xoá được hết."
+    : "Chế độ NHÂN VIÊN: đã ẩn doanh thu, báo cáo, khách hàng, cài đặt, nút xoá; không sửa được giá bán.";
   // đang ở tab bị khoá thì nhảy về Tổng quan
   if(!owner){ const cur=document.querySelector("#nav button.active"); if(cur && cur.classList.contains("owner-only")) selectTab("tongquan"); }
 }
 function toggleLock(){
-  if(owner){ owner=false; applyMode(); toast("Đã khoá — chế độ nhân viên"); return; }
-  if(!hasPin()){ owner=true; applyMode(); return; }   // chưa có mật khẩu thì mở luôn
-  const p=prompt("Nhập mật khẩu chủ để mở khoá:");
-  if(p===null) return;
-  if(hashPin(p.trim())===db.ownerPin){ owner=true; applyMode(); toast("Đã mở — chế độ chủ"); }
-  else alert("Sai mật khẩu.");
+  if(owner){ owner=false; applyMode(); toast("Đang xem ở chế độ nhân viên"); return; }
+  if(!isOwnerAccount()){ alert("Tài khoản này không có quyền chủ. Đăng nhập bằng tài khoản chủ để mở."); return; }
+  owner=true; applyMode(); toast("Đã mở — chế độ chủ");
 }
 function setOwnerPin(){
   const p=$("newPin").value.trim();
@@ -735,7 +767,7 @@ function importData(ev){
 function resetAll(){
   if(!confirm("Xoá SẠCH toàn bộ dữ liệu và về mặc định? Nên xuất sao lưu trước.")) return;
   if(!confirm("Chắc chắn xoá? Không hoàn tác được.")) return;
-  localStorage.removeItem(KEY); db=load(); renderAll(); toast("Đã xoá sạch");
+  localStorage.removeItem(KEY); db=load(); save(); renderAll(); toast("Đã xoá sạch");
 }
 
 /* ========================= RENDER ========================= */
@@ -1152,9 +1184,111 @@ function init(){
   $("repMonth").value=m; $("repQtrYear").value=y;
   $("repQuarter").value=Math.floor((new Date().getMonth())/3)+1;
   $("repFrom").value=m+"-01"; $("repTo").value=t;
-  owner = !hasPin();   // đã đặt mật khẩu -> mở app ở chế độ nhân viên; chưa đặt -> mở khoá
+  owner = isOwnerAccount();   // quyền theo tài khoản đăng nhập (email trong OWNER_EMAILS = CHỦ)
   renderAll();
   applyMode();
 }
-init();
+/* =========================================================================
+   ĐỒNG BỘ ĐÁM MÂY + ĐĂNG NHẬP (Supabase) — thêm ở bản v13, 2026-07-11
+   ========================================================================= */
+function isOwnerAccount(){ return !!currentUser && OWNER_EMAILS.includes((currentUser.email||"").toLowerCase()); }
+
+function setSync(state){
+  const el=$("syncDot"); if(!el) return;
+  if(state==="ok")  el.textContent="🟢 Đã đồng bộ";
+  else if(state==="err") el.textContent="🔴 Mất kết nối — sẽ tự lưu lại khi có mạng";
+  else el.textContent="⏳ Đang kết nối…";
+}
+
+/* ---- Đẩy dữ liệu lên mây (gộp nhiều lần lưu liên tiếp thành 1 lần) ---- */
+let pushTimer=null;
+function schedulePush(){
+  if(!cloudReady || !sb) return;      // chưa nối mây thì chỉ lưu trong máy
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(pushCloudNow, 500);
+}
+async function pushCloudNow(){
+  if(!cloudReady || !sb) return;
+  try{
+    const { error } = await sb.from("app_state")
+      .update({ data: db, updated_by: CLIENT_ID, updated_at: new Date().toISOString() })
+      .eq("id", 1);
+    if(error) throw error;
+    setSync("ok");
+  }catch(e){ console.error("push", e); setSync("err"); }
+}
+
+/* ---- Kéo dữ liệu từ mây về khi mở app ---- */
+async function pullCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from("app_state").select("data").eq("id",1).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.products){
+      db = data.data; migrate();                 // mây đã có số liệu -> dùng luôn
+      localStorage.setItem(KEY, JSON.stringify(db));
+    }else{
+      cloudReady=true; await pushCloudNow();      // mây rỗng -> đẩy dữ liệu hiện có lên
+    }
+    cloudReady=true; setSync("ok");
+  }catch(e){ console.error("pull", e); setSync("err"); toast("⚠️ Không tải được dữ liệu từ mây"); }
+}
+
+/* ---- Nghe thay đổi realtime: máy khác sửa -> máy này tự cập nhật ---- */
+function subscribeRealtime(){
+  if(!sb) return;
+  sb.channel("app_state_ch")
+    .on("postgres_changes", { event:"UPDATE", schema:"public", table:"app_state" }, payload=>{
+      const row = payload.new || {};
+      if(row.updated_by === CLIENT_ID) return;   // bỏ qua thay đổi do chính máy này gây ra
+      if(row.data && row.data.products){
+        db = row.data;
+        localStorage.setItem(KEY, JSON.stringify(db));
+        renderAll();
+        toast("🔄 Số liệu vừa cập nhật từ máy khác");
+      }
+    }).subscribe();
+}
+
+/* ---- Đăng nhập / đăng xuất ---- */
+function showLogin(msg){ const o=$("authOverlay"); if(o) o.classList.remove("hidden"); authErr(msg||""); }
+function hideLogin(){ const o=$("authOverlay"); if(o) o.classList.add("hidden"); }
+function authErr(m){ const e=$("authErr"); if(e) e.textContent=m||""; }
+async function doLogin(){
+  if(!sb){ authErr("Không tải được thư viện. Kiểm tra mạng rồi tải lại trang."); return; }
+  const email=($("authEmail").value||"").trim();
+  const pass=$("authPass").value||"";
+  if(!email||!pass){ authErr("Nhập email và mật khẩu."); return; }
+  authErr(""); const btn=$("authBtn"); btn.disabled=true; btn.textContent="Đang đăng nhập…";
+  try{
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if(error) throw error;
+    currentUser = data.user;
+    await afterLogin();
+  }catch(e){ authErr("Sai email hoặc mật khẩu."); }
+  finally{ btn.disabled=false; btn.textContent="Đăng nhập"; }
+}
+async function doLogout(){
+  if(sb){ try{ await sb.auth.signOut(); }catch(e){} }
+  location.reload();
+}
+async function afterLogin(){
+  hideLogin();
+  $("userEmail").textContent = currentUser.email || "";
+  await pullCloud();
+  subscribeRealtime();
+  init();
+}
+
+/* ---- Khởi động: kiểm tra đã đăng nhập chưa ---- */
+async function boot(){
+  if(!sb){ showLogin("Không tải được thư viện. Kiểm tra mạng rồi tải lại trang."); return; }
+  ["authEmail","authPass"].forEach(id=>{ const el=$(id); if(el) el.addEventListener("keydown",ev=>{ if(ev.key==="Enter") doLogin(); }); });
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    if(session){ currentUser=session.user; await afterLogin(); }
+    else { showLogin(); }
+  }catch(e){ console.error(e); showLogin("Lỗi kết nối. Tải lại trang thử lại."); }
+}
+boot();
 </script>
