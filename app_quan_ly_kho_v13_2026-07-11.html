@@ -1,0 +1,1294 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý Kho & Doanh thu — 1A INK</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#eef1fb; --panel:#ffffff; --panel2:#f4f6fc; --line:#e2e7f3;
+    --txt:#2b3350; --muted:#7a869c; --accent:#5b7cf0; --green:#16a37a;
+    --red:#e8546b; --gold:#c08a10; --purple:#8b5cf6; --orange:#f0820a;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,#f3ecfb,#eef1fb 240px);color:var(--txt);font-size:15px;-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#ffffff,#f6f3fd);
+    border-bottom:1px solid var(--line);padding:12px 16px;box-shadow:0 2px 12px rgba(120,110,180,.08)}
+  h1{margin:0;font-size:18px;letter-spacing:.3px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  nav{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  nav button{background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+    padding:8px 14px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:600}
+  nav button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  main{padding:16px;max-width:1100px;margin:0 auto}
+  .tab{display:none}.tab.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;margin-bottom:16px;box-shadow:0 4px 16px rgba(120,110,180,.07)}
+  .card h2{margin:0 0 12px;font-size:15px;color:var(--txt);display:flex;align-items:center;gap:8px}
+  .card h2 .tag{font-size:11px;color:var(--muted);font-weight:500}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    padding:10px;border-radius:10px;font-size:15px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));align-items:end}
+  .row .full{grid-column:1/-1}
+  button.act{background:var(--accent);color:#fff;border:none;padding:11px 18px;border-radius:10px;
+    font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap}
+  button.act.green{background:var(--green)}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);
+    padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  button.mini{background:transparent;border:1px solid var(--line);color:var(--red);
+    padding:4px 9px;border-radius:7px;cursor:pointer;font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .scroll{overflow-x:auto}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.ok{background:rgba(40,194,129,.15);color:var(--green)}
+  .pill.low{background:rgba(255,203,91,.15);color:var(--gold)}
+  .pill.zero{background:rgba(255,93,108,.15);color:var(--red)}
+  .pill.warn{background:rgba(240,130,10,.16);color:var(--orange)}
+  .pill.paid{background:rgba(40,194,129,.15);color:var(--green)}
+  .pill.unpaid{background:rgba(255,93,108,.15);color:var(--red)}
+  /* ô chọn Đã/Chưa thanh toán trong bảng đơn bán — sửa được ngay tại chỗ */
+  .pay-edit{width:auto;padding:4px 8px;border-radius:8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel2)}
+  .pay-edit.paid{color:var(--green);border-color:rgba(22,163,122,.4);background:rgba(40,194,129,.10)}
+  .pay-edit.unpaid{color:var(--red);border-color:rgba(232,84,107,.45);background:rgba(255,93,108,.12)}
+  body.emp-mode .pay-edit{pointer-events:none;opacity:.6}
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat .box{background:linear-gradient(135deg,#f7f4fe,#eef3fd);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .stat .box .k{color:var(--muted);font-size:12px}
+  .stat .box .v{font-size:22px;font-weight:800;margin-top:4px}
+  .green-t{color:var(--green)}.gold-t{color:var(--gold)}.red-t{color:var(--red)}.blue-t{color:var(--accent)}.purple-t{color:var(--purple)}
+  .muted{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:24px;font-size:14px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .toolbar .grp{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);
+    color:#fff;padding:12px 22px;border-radius:12px;font-weight:700;z-index:50;opacity:0;
+    transition:.25s;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;bottom:30px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  /* --- Khoá chế độ nhân viên: ẩn mọi thứ owner-only --- */
+  body.emp-mode .owner-only{ display:none !important; }
+  #lockBar{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+  #lockBtn{cursor:pointer;border:none;padding:8px 14px;border-radius:999px;font-weight:800;font-size:13px;color:#fff}
+  #lockBtn.owner{background:var(--green)} #lockBtn.emp{background:#8a93a6}
+  .mode-note{font-size:12px;color:var(--muted)}
+  @media(max-width:560px){ main{padding:12px} .card{padding:13px} h1{font-size:16px} }
+  /* --- Màn hình đăng nhập --- */
+  #authOverlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(160deg,#efeafd,#e7ecfb)}
+  #authOverlay.hidden{display:none}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;box-shadow:0 20px 60px rgba(90,80,160,.25)}
+  .auth-card h2{margin:0 0 4px;font-size:19px}
+  .auth-sub{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.5}
+  .auth-card label{margin-top:12px}
+  .auth-card input{margin-top:2px}
+  .auth-err{color:var(--red);font-size:13px;min-height:18px;margin:8px 0}
+  .auth-card button.act{width:100%;margin-top:6px}
+</style>
+
+<header>
+  <h1>🧪 Quản lý Kho & Doanh thu — <span>1A INK</span></h1>
+  <div class="sub">Sản xuất · Nguyên liệu · Bán hàng · Doanh thu — dữ liệu chung trên mây, nhiều người dùng chung</div>
+  <div id="lockBar">
+    <button id="lockBtn" onclick="toggleLock()">🔓 Chế độ CHỦ</button>
+    <span class="mode-note" id="modeNote"></span>
+    <span class="mode-note" id="syncDot" style="margin-left:auto">⏳ Đang kết nối…</span>
+    <span class="mode-note" id="userEmail"></span>
+    <button class="ghost" onclick="doLogout()" style="padding:6px 10px">Đăng xuất</button>
+  </div>
+  <nav id="nav">
+    <button data-tab="tongquan" class="active">📊 Tổng quan</button>
+    <button data-tab="nguyenlieu">🧴 Nguyên liệu</button>
+    <button data-tab="sanxuat">🏭 Sản xuất</button>
+    <button data-tab="banhang">🛒 Bán hàng</button>
+    <button data-tab="khach" class="owner-only">👤 Khách hàng</button>
+    <button data-tab="doanhthu" class="owner-only">💰 Doanh thu</button>
+    <button data-tab="caidat" class="owner-only">⚙️ Sản phẩm & Cài đặt</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ TỔNG QUAN ============ -->
+  <section id="tab-tongquan" class="tab active">
+    <div class="card">
+      <h2>Tổng quan hôm nay <span class="tag" id="todayLabel"></span></h2>
+      <div class="stat" id="statBoxes"></div>
+    </div>
+    <div class="card owner-only">
+      <h2>📤 Báo cáo doanh thu tổng hợp</h2>
+      <div class="row">
+        <div><label>Tháng</label><input type="month" id="repMonth" onchange="renderReport()"></div>
+        <div><label>Quý</label><select id="repQuarter" onchange="renderReport()">
+          <option value="1">Quý 1 (T1–T3)</option><option value="2">Quý 2 (T4–T6)</option>
+          <option value="3">Quý 3 (T7–T9)</option><option value="4">Quý 4 (T10–T12)</option>
+        </select></div>
+        <div><label>Năm (của quý)</label><input type="number" id="repQtrYear" onchange="renderReport()"></div>
+        <div><label>Từ ngày</label><input type="date" id="repFrom" onchange="renderReport()"></div>
+        <div><label>Đến ngày</label><input type="date" id="repTo" onchange="renderReport()"></div>
+        <div style="align-self:end"><button class="act green" onclick="exportReport()">⬇️ Xuất Excel (CSV)</button></div>
+      </div>
+      <div class="hint">Các cột theo thứ tự: Thương hiệu · ML · Tiền theo tháng · Tiền theo quý · Tiền từ ngày→đến ngày · SL bán theo tháng · SL bán theo quý · Hàng tặng · Hàng hư hỏng. Tất cả thương hiệu xếp giống Tổng quan; bấm <b>Xuất Excel</b> để lưu file .csv mở bằng Excel/Google Sheet.</div>
+      <div class="scroll" style="margin-top:12px"><table id="repTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>📦 Tồn kho thành phẩm theo từng màu</h2>
+      <div class="toolbar"><div class="grp">
+        <label style="margin:0">Lọc thương hiệu</label>
+        <select id="stockBrandFilter" style="width:auto" onchange="renderTongquan()"></select>
+      </div></div>
+      <div class="scroll"><table id="stockTable"></table></div>
+      <div class="hint">Tồn = Nhập kho (sản xuất) − Đã bán − Tặng − Hư, tính theo <b>từng màu</b>.
+        <span class="pill warn">⚠️ Sắp hết hàng</span> khi còn ≤ 10 chai · <span class="pill zero">Hết hàng</span> khi = 0.
+        Mặc định chỉ hiện màu đã phát sinh; chọn 1 thương hiệu để xem đủ tất cả màu.</div>
+    </div>
+    <div class="card">
+      <h2>🧴 Tồn nguyên liệu</h2>
+      <div class="scroll"><table id="matStockTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ NGUYÊN LIỆU ============ -->
+  <section id="tab-nguyenlieu" class="tab">
+    <div class="card">
+      <h2>Ghi nhập / xuất nguyên liệu</h2>
+      <div class="row">
+        <div><label>Ngày</label><input type="date" id="mtxDate"></div>
+        <div><label>Loại nguyên liệu</label><select id="mtxMat"></select></div>
+        <div><label>Thao tác</label><select id="mtxType">
+          <option value="in">➕ Nhập về</option>
+          <option value="out">➖ Xuất ra (dùng sản xuất)</option>
+        </select></div>
+        <div><label>Số lượng</label><input type="number" id="mtxQty" min="0" step="any" placeholder="0"></div>
+        <div class="full"><label>Ghi chú (không bắt buộc)</label><input id="mtxNote" placeholder="vd: mua từ nhà cung cấp A"></div>
+        <div class="full"><button class="act green" onclick="addMatTx()">Lưu nguyên liệu</button></div>
+      </div>
+      <div class="hint">Nhập về sẽ <b>cộng</b> vào tồn. Xuất ra sẽ <b>tự trừ</b> khỏi tồn. Muốn thêm loại nguyên liệu mới: vào tab ⚙️ Sản phẩm & Cài đặt.</div>
+    </div>
+    <div class="card">
+      <h2>Tồn nguyên liệu hiện tại</h2>
+      <div class="scroll"><table id="matStockTable2"></table></div>
+    </div>
+    <div class="card">
+      <h2>Lịch sử nguyên liệu gần đây</h2>
+      <div class="scroll"><table id="matTxTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ SẢN XUẤT ============ -->
+  <section id="tab-sanxuat" class="tab">
+    <div class="card">
+      <h2>Ghi đợt sản xuất <span class="tag">thêm nhiều sản phẩm trong 1 lần</span></h2>
+      <div class="row">
+        <div><label>Ngày</label><input type="date" id="prodDate"></div>
+        <div style="grid-column:2/-1"><label>Ghi chú (chung cả đợt)</label><input id="prodNote" placeholder="vd: đợt pha ngày ..."></div>
+      </div>
+      <div style="border-top:1px dashed var(--line);margin:14px 0 10px"></div>
+      <div class="row">
+        <div><label>Thương hiệu</label><select id="prodItem" onchange="onProdItemChange()"></select></div>
+        <div><label>🎨 Màu / Tên sản phẩm</label><select id="prodColor"></select></div>
+        <div><label>Số lượng làm ra (chai)</label><input type="number" id="prodQty" min="0" step="1" placeholder="0"></div>
+        <div style="align-self:end"><button class="act green" onclick="addToProdDraft()">➕ Thêm vào đợt</button></div>
+      </div>
+      <div class="scroll" style="margin-top:12px"><table id="prodDraftTable"></table></div>
+      <div style="margin-top:12px"><button class="act" id="saveProdBtn" onclick="saveProdBatch()" style="width:100%">💾 Nhập kho cả đợt</button></div>
+      <div class="hint">Chọn thương hiệu + số lượng rồi bấm <b>➕ Thêm vào đợt</b>, lặp lại cho từng sản phẩm. Xong bấm <b>💾 Nhập kho cả đợt</b> một lần — tất cả <b>tự cộng</b> vào tồn kho thành phẩm.</div>
+    </div>
+    <div class="card">
+      <h2>📅 Tổng sản lượng sản xuất theo tháng <span class="tag">tất cả thương hiệu</span></h2>
+      <div class="toolbar"><div class="grp">
+        <label style="margin:0">Chọn tháng</label>
+        <input type="month" id="prodMonthPick" style="width:auto" onchange="renderSanxuat()">
+      </div></div>
+      <div class="scroll"><table id="prodMonthTable"></table></div>
+      <div class="hint">Các lô ghi theo từng ngày trong tháng được <b>cộng dồn</b> thành 1 cột. Liệt kê đủ tất cả thương hiệu (chưa sản xuất = 0), xếp giống Tổng quan.</div>
+    </div>
+    <div class="card">
+      <h2>Lịch sử sản xuất gần đây</h2>
+      <div class="toolbar">
+        <div class="grp"><span class="muted" style="font-size:13px">Bảng dưới hiện 50 lô mới nhất — file xuất ra gồm <b>toàn bộ</b> để đối soát.</span></div>
+        <div class="grp owner-only"><button class="act green" onclick="exportSanxuat()">⬇️ Xuất file sản xuất (đối soát kho)</button></div>
+      </div>
+      <div class="scroll"><table id="prodTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ BÁN HÀNG ============ -->
+  <section id="tab-banhang" class="tab">
+    <div class="card">
+      <h2>Tạo đơn bán <span class="tag">chọn nhiều thương hiệu trong 1 đơn</span></h2>
+      <div class="row">
+        <div><label>Ngày</label><input type="date" id="saleDate"></div>
+        <div><label>📞 SĐT khách</label><input id="custPhone" list="dlPhone" oninput="onPhoneLookup()" placeholder="Nhập SĐT — khách cũ tự hiện tên"></div>
+        <div><label>👤 Tên khách</label><input id="custName" list="dlCust" placeholder="Tên khách hàng"></div>
+        <div><label>🏠 Địa chỉ khách</label><input id="custAddr" list="dlAddr" placeholder="Địa chỉ khách hàng"></div>
+        <div><label>🧑‍💼 Người bán (Sale)</label><input id="seller" list="dlSeller" placeholder="Tên nhân viên bán"></div>
+        <div style="grid-column:1/-1"><label>Ghi chú thêm (không bắt buộc)</label><input id="saleNote" placeholder="vd: giao hàng, đại lý ..."></div>
+      </div>
+      <datalist id="dlCust"></datalist><datalist id="dlPhone"></datalist><datalist id="dlAddr"></datalist><datalist id="dlSeller"></datalist>
+      <div style="border-top:1px dashed var(--line);margin:14px 0 10px"></div>
+      <div class="row">
+        <div><label>Thương hiệu</label><select id="saleItem" onchange="onSaleItemChange()"></select></div>
+        <div><label>🎨 Màu / Tên sản phẩm</label><select id="saleColor" onchange="updateSaleStock()"></select></div>
+        <div><label>SL bán</label><input type="number" id="saleQty" min="0" step="1" placeholder="0"></div>
+        <div><label>Đơn giá (đ/chai)</label><input type="number" id="salePrice" min="0" step="1000" placeholder="0"></div>
+        <div><label>💳 Trạng thái thanh toán</label><select id="salePay">
+          <option value="1">✅ Đã thanh toán</option>
+          <option value="0">❌ Chưa thanh toán</option>
+        </select></div>
+        <div><label>🏷️ Khuyến mãi (giảm, đ)</label><input type="number" id="saleKm" min="0" step="1000" value="0"></div>
+        <div><label>🎁 Hàng tặng</label><input type="number" id="saleGift" min="0" step="1" value="0"></div>
+        <div><label>🔁 Hư đổi trả</label><input type="number" id="saleDefect" min="0" step="1" value="0"></div>
+        <div><label>📦 Tồn còn lại</label><input id="saleStock" readonly style="font-weight:800;text-align:center;background:#eef3fd;color:var(--accent)"></div>
+        <div style="align-self:end"><button class="act green" onclick="addToDraft()">➕ Thêm vào đơn</button></div>
+      </div>
+      <div class="scroll" style="margin-top:12px"><table id="draftTable"></table></div>
+      <div style="margin-top:12px"><button class="act" id="saveOrderBtn" onclick="saveOrder()" style="width:100%">💾 Lưu cả đơn</button></div>
+      <div class="hint">Chọn thương hiệu + số lượng rồi bấm <b>➕ Thêm vào đơn</b>, lặp lại cho từng thương hiệu khách mua. Xong bấm <b>💾 Lưu cả đơn</b> một lần. Thành tiền = (SL × Đơn giá) − Khuyến mãi. SL bán + tặng + hư đều trừ tồn; <b>không tạo được đơn khi tồn không đủ</b>.<br>💳 <b>Trạng thái thanh toán</b>: mặc định ✅ Đã thanh toán; khách mua nợ thì chọn ❌ Chưa thanh toán. Xem lại ở bảng <b>"Đơn bán gần đây"</b> bên dưới — khi khách trả nợ, bấm đổi ô đó thành ✅ để khỏi phải đòi thêm.</div>
+    </div>
+    <div class="card">
+      <h2>Đơn bán gần đây</h2>
+      <div class="scroll"><table id="saleTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ KHÁCH HÀNG ============ -->
+  <section id="tab-khach" class="tab">
+    <div class="card">
+      <h2>👤 Thông tin khách hàng — theo từng đơn</h2>
+      <div class="toolbar">
+        <div class="grp">
+          <input id="custSearch" placeholder="🔎 Tìm theo tên / SĐT / địa chỉ..." oninput="renderKhach()" style="width:auto;min-width:240px">
+        </div>
+        <div class="grp">
+          <button class="act green" onclick="exportKhach()">⬇️ Xuất Excel data khách hàng</button>
+        </div>
+      </div>
+      <div class="scroll"><table id="custTable"></table></div>
+      <div class="hint">Mỗi đơn 1 dòng. <b>Tổng giá trị đơn</b> = cộng tất cả thương hiệu trong đơn đó. Dùng để giữ lại data khách hàng và gọi lại khi cần.</div>
+    </div>
+    <div class="card">
+      <h2>🧑‍💼 Hiệu quả người bán (Sale)</h2>
+      <div class="toolbar"><div class="grp">
+        <label style="margin:0">Doanh thu tháng</label>
+        <input type="month" id="sellerMonth" style="width:auto" onchange="renderKhach()">
+      </div></div>
+      <div class="scroll"><table id="sellerTable"></table></div>
+      <div class="hint">Xếp theo tổng doanh thu cao → thấp. Cột "tháng" theo tháng anh chọn, cột "tất cả" tính từ đầu, để anh biết sale nào làm việc hiệu quả.</div>
+    </div>
+  </section>
+
+  <!-- ============ DOANH THU ============ -->
+  <section id="tab-doanhthu" class="tab">
+    <div class="card">
+      <h2>Doanh thu theo NGÀY — từng thương hiệu</h2>
+      <div class="toolbar"><div class="grp">
+        <label style="margin:0">Chọn ngày</label>
+        <input type="date" id="dayPick" style="width:auto" onchange="renderDay()">
+      </div></div>
+      <div class="scroll"><table id="dayTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>Doanh thu theo THÁNG — từng thương hiệu <span class="tag">tự cộng khi đủ tháng</span></h2>
+      <div class="toolbar"><div class="grp">
+        <label style="margin:0">Chọn tháng</label>
+        <input type="month" id="monthPick" style="width:auto" onchange="renderMonth()">
+      </div></div>
+      <div class="scroll"><table id="monthTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>Doanh thu theo NĂM (12 tháng)</h2>
+      <div class="toolbar"><div class="grp">
+        <label style="margin:0">Chọn năm</label>
+        <input type="number" id="yearPick" style="width:110px" onchange="renderYear()">
+      </div></div>
+      <div class="scroll"><table id="yearTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ CÀI ĐẶT ============ -->
+  <section id="tab-caidat" class="tab">
+    <div class="card" style="display:none">
+      <h2>🔐 Mật khẩu chủ (phân quyền nhân viên)</h2>
+      <div class="row">
+        <div><label>Đặt / đổi mật khẩu chủ (≥ 4 ký tự)</label><input type="password" id="newPin" placeholder="nhập mật khẩu mới"></div>
+        <div style="align-self:end"><button class="act" onclick="setOwnerPin()">Lưu mật khẩu</button></div>
+        <div style="align-self:end"><button class="ghost" style="color:var(--red);border-color:var(--red)" onclick="clearOwnerPin()">Bỏ mật khẩu</button></div>
+      </div>
+      <div class="hint">Đặt mật khẩu xong: mỗi lần mở app sẽ ở <b>chế độ nhân viên</b> (ẩn doanh thu, báo cáo, khách hàng, cài đặt, nút xoá; không sửa được giá bán). Bấm nút 🔒 trên đầu trang rồi nhập mật khẩu để về <b>chế độ chủ</b>. Đóng/mở lại app tự khoá lại. <b>Lưu ý:</b> đây là khoá mềm — đủ chặn nhân viên thường, không chống được người rất rành máy tính (muốn khoá cứng cần lên cloud tài khoản riêng).</div>
+    </div>
+    <div class="card">
+      <h2>Thương hiệu / Sản phẩm</h2>
+      <div class="row">
+        <div class="full"><label>Tên thương hiệu (kèm dung tích)</label><input id="npName" placeholder="vd: ETHER 10ML"></div>
+        <div><label>Giá bán mặc định (đ)</label><input type="number" id="npPrice" min="0" step="1000" placeholder="0"></div>
+        <div style="align-self:end"><button class="act" onclick="addProduct()">Thêm sản phẩm</button></div>
+      </div>
+      <div class="scroll" style="margin-top:12px"><table id="prodListTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>🎨 Màu / Tên sản phẩm theo thương hiệu</h2>
+      <div class="row">
+        <div><label>Thương hiệu</label><select id="ncBrand"></select></div>
+        <div><label>Tên màu</label><input id="ncName" placeholder="vd: CAM TƯƠI"></div>
+        <div><label>Mã số (nếu có)</label><input id="ncCode" placeholder="vd: MS004"></div>
+        <div style="align-self:end"><button class="act" onclick="addColor()">Thêm màu</button></div>
+      </div>
+      <div class="scroll" style="margin-top:12px"><table id="colorListTable"></table></div>
+      <div class="hint">Màu dùng chung cho mọi dung tích của thương hiệu đó. Đã nạp sẵn màu ETHER / ELIPS / EBROWS anh gửi.</div>
+    </div>
+    <div class="card">
+      <h2>Loại nguyên liệu</h2>
+      <div class="row">
+        <div class="full"><label>Tên nguyên liệu</label><input id="nmName" placeholder="vd: Dung môi, Bột màu đỏ ..."></div>
+        <div><label>Đơn vị</label><input id="nmUnit" placeholder="ml, g, chai ..." value="ml"></div>
+        <div style="align-self:end"><button class="act" onclick="addMaterial()">Thêm nguyên liệu</button></div>
+      </div>
+      <div class="scroll" style="margin-top:12px"><table id="matListTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>💾 Sao lưu dữ liệu (đường lùi)</h2>
+      <div class="hint" style="margin-top:0;margin-bottom:12px">Dữ liệu lưu trong trình duyệt của máy này. Nên bấm <b>Xuất file sao lưu</b> định kỳ để giữ đường lùi. Muốn chuyển sang máy khác thì Nhập lại file đó.</div>
+      <div class="grp" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ghost" onclick="exportData()">⬇️ Xuất file sao lưu (.json)</button>
+        <button class="ghost" onclick="document.getElementById('importFile').click()">⬆️ Nhập file sao lưu</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="ghost" style="color:var(--red);border-color:var(--red)" onclick="resetAll()">🗑️ Xoá sạch dữ liệu</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="authOverlay">
+  <div class="auth-card">
+    <h2>🔐 Kho INK — Đăng nhập</h2>
+    <p class="auth-sub">Nhập email &amp; mật khẩu được cấp để vào app dùng chung. Chỉ người có tài khoản mới xem được số liệu.</p>
+    <label>Email</label>
+    <input id="authEmail" type="email" autocomplete="username" placeholder="email@vidu.com">
+    <label>Mật khẩu</label>
+    <input id="authPass" type="password" autocomplete="current-password" placeholder="mật khẩu">
+    <div class="auth-err" id="authErr"></div>
+    <button class="act" id="authBtn" onclick="doLogin()">Đăng nhập</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   QUẢN LÝ KHO & DOANH THU — 1A INK  (bản v1, 2026-07-07)
+   Dữ liệu lưu bằng localStorage. Không cần internet, không đăng nhập.
+   ========================================================================= */
+const KEY = "kho_ink_v1";
+const LOW_STOCK = 10;   // còn ≤ 10 chai -> cảnh báo Sắp hết hàng (màu cam)
+
+/* ===== Cấu hình đám mây (Supabase) — dùng chung số liệu cho nhiều người ===== */
+const SB_URL = "https://rltielxllijoqcvxkmyl.supabase.co";
+const SB_KEY = "sb_publishable_D27UJvVhkxISgoqDlAYIaQ_t5bHt3gp";
+const OWNER_EMAILS = ["truongvietbao@gmail.com"]; // email có quyền CHỦ (viết thường); còn lại là nhân viên
+const sb = (window.supabase && supabase.createClient) ? supabase.createClient(SB_URL, SB_KEY) : null;
+const CLIENT_ID = "c" + Math.random().toString(36).slice(2) + Date.now();
+let currentUser = null;
+let cloudReady = false;   // true khi đã nối mây xong -> mới cho đẩy dữ liệu lên
+
+/* ---- Dữ liệu mặc định: lấy từ tài liệu gốc "CÁC THƯƠNG HIỆU VÀ GIÁ" ---- */
+const SEED_PRODUCTS = [
+  ["ETHER 5ML", 680000],
+  ["ETHER 10ML", 980000],
+  ["ETHER 15ML", 990000],   // 1.190.000 giảm còn 990.000
+  ["E LIPS 10ML", 980000],
+  ["E Brows 10Ml", 980000],
+  ["Elevate 10Ml", 1390000],
+  ["Extract 10Ml", 1390000],
+  ["Shifting 10Ml", 480000],
+  ["E Super Bold Lips 10Ml", 980000],
+];
+// Đổi tên cho dữ liệu đã lưu từ bản trước (tên cũ -> tên mới có số Ml)
+const RENAME = {
+  "EBROWS":"E Brows 10Ml", "ELEVATE":"Elevate 10Ml", "EXTRACT":"Extract 10Ml",
+  "SHIFTING":"Shifting 10Ml", "E SUPER BOLD LIPS":"E Super Bold Lips 10Ml"
+};
+// Gán mỗi sản phẩm (thương hiệu+dung tích) vào 1 THƯƠNG HIỆU để dùng chung danh sách màu
+const PRODUCT_BRAND = {
+  "ETHER 5ML":"ETHER","ETHER 10ML":"ETHER","ETHER 15ML":"ETHER",
+  "E LIPS 10ML":"ELIPS","E Brows 10Ml":"EBROWS",
+  "Elevate 10Ml":"ELEVATE","Extract 10Ml":"EXTRACT","Shifting 10Ml":"SHIFTING","E Super Bold Lips 10Ml":"E SUPER BOLD LIPS"
+};
+// Danh sách MÀU nạp sẵn theo thương hiệu: [thương hiệu, tên màu, mã số]
+const SEED_COLORS = [
+  // ETHER — 29 màu (tất cả đều có 3 dung tích 5/10/15ML, dùng chung màu)
+  ["ETHER","CAM TƯƠI","MS004"],["ETHER","ĐỎ TƯƠI","MS013"],["ETHER","HỒNG CAM SỮA","MS047"],
+  ["ETHER","CAM HỒNG SỮA","MS017"],["ETHER","CAM HỒNG","MS027"],["ETHER","HỒNG CAM","MS030"],
+  ["ETHER","HỒNG BABY","MS024"],["ETHER","ĐỎ ĐẬM","MS014"],["ETHER","ĐỎ ĐẬM","MS016"],
+  ["ETHER","CAM CÀ RỐT","MS004"],["ETHER","CAM GẠCH","MS081"],["ETHER","MÀU DA","MS068"],
+  ["ETHER","XANH LÁ","MS079"],["ETHER","ĐỎ CAM","MS012"],["ETHER","HỒNG TÍM SỮA","MS034"],
+  ["ETHER","CAM TƯƠI","MS001"],["ETHER","CAM ĐỎ","MS008"],["ETHER","CAM ĐỎ","MS007"],
+  ["ETHER","TRẮNG","MS037"],["ETHER","PHUN NÂU NHẠT","MS1052"],["ETHER","PHUN NÂU VỪA","MS1053"],
+  ["ETHER","PHUN NÂU ĐẬM","MS1054"],["ETHER","VÀNG CHANH","MS044"],["ETHER","SỢI NÂU NHẠT","MS1060"],
+  ["ETHER","SỢI NÂU VỪA","MS1061"],["ETHER","SỢI NÂU ĐẬM","MS1062"],["ETHER","ĐỎ CAM","MS010"],
+  ["ETHER","ĐEN","MS038"],["ETHER","VÀNG THUẦN","MS045"],
+  // ELIPS
+  ["ELIPS","HỒNG CAM SỮA",""],["ELIPS","CAM ĐÀO",""],["ELIPS","ĐỎ TƯƠI",""],["ELIPS","ĐỎ CAM ĐẤT",""],
+  ["ELIPS","CAM ĐỎ",""],["ELIPS","ĐỎ CAM",""],["ELIPS","HỒNG ĐÀO TƯƠI",""],
+  // EBROWS
+  ["EBROWS","NÂU VỪA TRUNG TÍNH",""],["EBROWS","NÂU ĐẬM",""],["EBROWS","NÂU VÀNG MỀM",""],["EBROWS","NÂU TÂY",""]
+];
+
+let db = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  // khởi tạo lần đầu
+  return {
+    version:1,
+    seq:1,
+    products: SEED_PRODUCTS.map((p,i)=>({id:"p"+(i+1), name:p[0], price:p[1], brand:PRODUCT_BRAND[p[0]]||p[0]})),
+    colors: [],
+    materials: [],
+    materialTx: [],
+    production: [],
+    sales: [],
+  };
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); schedulePush(); }
+function migrate(){
+  let changed=false;
+  if(!db.mig1){ db.products.forEach(p=>{ if(RENAME[p.name]){ p.name=RENAME[p.name]; changed=true; } }); db.mig1=true; changed=true; }
+  if(!db.mig3){
+    // gán thương hiệu cho sản phẩm cũ + nạp danh sách màu nếu chưa có
+    db.products.forEach(p=>{ if(!p.brand) p.brand = PRODUCT_BRAND[p.name] || p.name; });
+    if(!db.colors) db.colors=[];
+    if(db.colors.length===0){ SEED_COLORS.forEach(c=>{ db.colors.push({id:nid("c"),brand:c[0],name:c[1],code:c[2]}); }); }
+    db.mig3=true; changed=true;
+  }
+  if(!db.mig4){
+    // Bổ sung màu mới trong SEED_COLORS mà dữ liệu cũ chưa có (không xoá màu nào)
+    if(!db.colors) db.colors=[];
+    SEED_COLORS.forEach(c=>{
+      const has=db.colors.some(x=>x.brand===c[0] && x.name===c[1] && (x.code||"")===(c[2]||""));
+      if(!has) db.colors.push({id:nid("c"),brand:c[0],name:c[1],code:c[2]});
+    });
+    db.mig4=true; changed=true;
+  }
+  if(changed) save();
+}
+function nid(pre){ db.seq = (db.seq||1)+1; return pre+db.seq; }
+
+/* ---------- tiện ích ---------- */
+const $ = id => document.getElementById(id);
+function fmt(n){ n=Math.round(n||0); return n.toLocaleString("vi-VN"); }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+// Hiển thị ngày kiểu Việt Nam: 2026-07-08 -> 08/07/2026 (Ngày/Tháng/Năm). Dữ liệu bên trong vẫn lưu chuẩn để tính toán/sắp xếp.
+function fmtDate(iso){ if(!iso) return ""; const p=String(iso).split("-"); return p.length===3 ? p[2]+"/"+p[1]+"/"+p[0] : String(iso); }
+function monthStr(){ return todayStr().slice(0,7); }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1600); }
+function prodName(id){ const p=db.products.find(x=>x.id===id); return p?p.name:"(đã xoá)"; }
+function brandOf(pid){ const p=db.products.find(x=>x.id===pid); return p?(p.brand||""):""; }
+function colorsOfBrand(brand){ return (db.colors||[]).filter(c=>c.brand===brand); }
+function colorName(cid){ if(!cid) return ""; const c=(db.colors||[]).find(x=>x.id===cid); return c? (c.name + (c.code? " - "+c.code : "")) : "(màu đã xoá)"; }
+function getBrands(){ const s=[]; db.products.forEach(p=>{ const b=p.brand||p.name; if(!s.includes(b)) s.push(b); }); return s; }
+function hasActivity(pid,cid){
+  return db.production.some(r=>r.productId===pid && (r.colorId||"")===cid) || db.sales.some(r=>r.productId===pid && (r.colorId||"")===cid);
+}
+function matName(id){ const m=db.materials.find(x=>x.id===id); return m?m.name:"(đã xoá)"; }
+function matUnit(id){ const m=db.materials.find(x=>x.id===id); return m?m.unit:""; }
+// Tách "ETHER 10ML" -> {brand:"ETHER", ml:"10ML"} để báo cáo có cột ML riêng
+function splitML(name){
+  const m=name.match(/(\d+(?:[.,]\d+)?)\s*ml/i);
+  if(m) return {ml:m[1].replace(",",".")+"ML", brand:name.replace(m[0],"").replace(/\s{2,}/g," ").trim()};
+  return {ml:"", brand:name};
+}
+
+/* ---------- tính tồn kho ---------- */
+// cid = mã màu. Bỏ trống (undefined/null) => tính TỔNG mọi màu của sản phẩm đó.
+function stockOf(pid, cid){
+  let s=0;
+  db.production.forEach(r=>{ if(r.productId===pid && (cid==null || (r.colorId||"")===cid)) s+=r.qty; });
+  db.sales.forEach(r=>{ if(r.productId===pid && (cid==null || (r.colorId||"")===cid)) s-=(r.qty + (r.gift||0) + (r.defect||0)); });
+  return s;
+}
+function matStockOf(mid){
+  let s=0;
+  db.materialTx.forEach(r=>{ if(r.materialId===mid) s += (r.type==="in"? r.qty : -r.qty); });
+  return s;
+}
+
+/* ========================= NAV ========================= */
+function selectTab(tab){
+  document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  const btn=document.querySelector('#nav button[data-tab="'+tab+'"]');
+  if(btn) btn.classList.add("active");
+  const sec=$("tab-"+tab); if(sec) sec.classList.add("active");
+  renderAll();
+}
+document.querySelectorAll("#nav button").forEach(b=>{ b.onclick=()=>selectTab(b.dataset.tab); });
+
+/* ================= KHOÁ CHẾ ĐỘ CHỦ / NHÂN VIÊN ================= */
+let owner = true;  // true = chủ (mở hết), false = nhân viên (khoá). KHÔNG lưu -> mở lại app là về nhân viên.
+function hashPin(s){ let h=5381; for(let i=0;i<s.length;i++){ h=((h<<5)+h)+s.charCodeAt(i); } return "h"+(h>>>0); }
+function hasPin(){ return !!db.ownerPin; }
+function applyMode(){
+  document.body.classList.toggle("emp-mode", !owner);
+  const sp=$("salePrice"); if(sp) sp.readOnly = !owner;   // nhân viên không sửa được đơn giá
+  // nhân viên không sửa được trạng thái thanh toán trong bảng đơn bán (khoá cứng cả bàn phím, không chỉ chuột)
+  document.querySelectorAll(".pay-edit").forEach(s=>{ s.disabled = !owner; });
+  const btn=$("lockBtn");
+  btn.textContent = owner ? "🔓 Đang là CHỦ — bấm để khoá" : "🔒 Đang là NHÂN VIÊN — bấm để mở";
+  btn.className = owner ? "owner" : "emp";
+  $("modeNote").textContent = owner
+    ? "Chế độ CHỦ: xem/sửa/xoá được hết."
+    : "Chế độ NHÂN VIÊN: đã ẩn doanh thu, báo cáo, khách hàng, cài đặt, nút xoá; không sửa được giá bán.";
+  // đang ở tab bị khoá thì nhảy về Tổng quan
+  if(!owner){ const cur=document.querySelector("#nav button.active"); if(cur && cur.classList.contains("owner-only")) selectTab("tongquan"); }
+}
+function toggleLock(){
+  if(owner){ owner=false; applyMode(); toast("Đang xem ở chế độ nhân viên"); return; }
+  if(!isOwnerAccount()){ alert("Tài khoản này không có quyền chủ. Đăng nhập bằng tài khoản chủ để mở."); return; }
+  owner=true; applyMode(); toast("Đã mở — chế độ chủ");
+}
+function setOwnerPin(){
+  const p=$("newPin").value.trim();
+  if(p.length<4){ alert("Mật khẩu tối thiểu 4 ký tự."); return; }
+  db.ownerPin=hashPin(p); save(); $("newPin").value="";
+  applyMode(); toast("Đã đặt mật khẩu chủ");
+}
+function clearOwnerPin(){
+  if(!confirm("Bỏ mật khẩu chủ? App sẽ luôn mở khoá (không phân quyền nữa).")) return;
+  delete db.ownerPin; save(); owner=true; applyMode(); toast("Đã bỏ mật khẩu chủ");
+}
+
+/* ========================= NGUYÊN LIỆU ========================= */
+function addMatTx(){
+  const mid=$("mtxMat").value, qty=parseFloat($("mtxQty").value);
+  if(!mid){ alert("Chưa có loại nguyên liệu nào. Vào ⚙️ để thêm trước."); return; }
+  if(!(qty>0)){ alert("Nhập số lượng lớn hơn 0."); return; }
+  db.materialTx.push({id:nid("mt"),date:$("mtxDate").value||todayStr(),materialId:mid,
+    type:$("mtxType").value, qty, note:$("mtxNote").value.trim()});
+  save(); $("mtxQty").value=""; $("mtxNote").value="";
+  toast("Đã lưu nguyên liệu"); renderAll();
+}
+
+/* ========================= SẢN XUẤT ========================= */
+// GIỎ ĐỢT SẢN XUẤT (chưa lưu vào db) — 1 đợt gồm nhiều dòng sản phẩm
+let prodDraft = [];
+function onProdItemChange(){ fillColorSelect("prodColor", $("prodItem").value); }
+function addToProdDraft(){
+  const pid=$("prodItem").value, qty=parseInt($("prodQty").value), colorId=$("prodColor").value;
+  if(!pid){ alert("Chưa có sản phẩm nào."); return; }
+  if(!(qty>0)){ alert("Nhập số lượng lớn hơn 0."); return; }
+  prodDraft.push({productId:pid, colorId, qty});
+  $("prodQty").value="";
+  renderProdDraft();
+}
+function removeProdDraft(i){ prodDraft.splice(i,1); renderProdDraft(); }
+function renderProdDraft(){
+  let tot=0;
+  const rows=prodDraft.map((l,i)=>{ tot+=l.qty;
+    return `<tr><td>${prodName(l.productId)}</td><td class="muted">${colorName(l.colorId)||"—"}</td><td class="num" style="font-weight:700">+${fmt(l.qty)}</td>
+      <td><button class="mini" onclick="removeProdDraft(${i})">Bỏ</button></td></tr>`; }).join("");
+  $("prodDraftTable").innerHTML=`<tr><th>Thương hiệu</th><th>Màu</th><th class="num">SL làm ra</th><th></th></tr>`+
+    (prodDraft.length? rows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG ĐỢT</td><td></td><td class="num purple-t">+${fmt(tot)}</td><td></td></tr>`
+      :`<tr><td colspan="4" class="empty">Chưa có sản phẩm nào trong đợt. Chọn ở trên rồi bấm ➕ Thêm vào đợt.</td></tr>`);
+  $("saveProdBtn").textContent = prodDraft.length? `💾 Nhập kho cả đợt (${prodDraft.length} dòng)` : "💾 Nhập kho cả đợt";
+}
+function saveProdBatch(){
+  if(!prodDraft.length){ alert("Đợt chưa có sản phẩm nào. Bấm ➕ Thêm vào đợt trước khi lưu."); return; }
+  const date=$("prodDate").value||todayStr(), note=$("prodNote").value.trim(), bid=nid("pb");
+  prodDraft.forEach(l=>{ db.production.push({id:nid("pr"),batchId:bid,date,productId:l.productId,colorId:l.colorId||"",qty:l.qty,note}); });
+  save();
+  const n=prodDraft.length; prodDraft=[]; $("prodNote").value="";
+  renderProdDraft();
+  toast(`Đã nhập kho đợt ${n} dòng`); renderAll();
+}
+
+/* ========================= BÁN HÀNG ========================= */
+function saleRev(s){ return Math.max(0, s.qty*s.price - (s.km||0)); }  // doanh thu 1 dòng (sau khuyến mãi)
+
+/* ---- Trạng thái thanh toán (để biết ai còn nợ mà đòi) ---- */
+function isPaid(s){ return s.paid!==false; }   // đơn cũ chưa có cột này -> coi như ĐÃ thanh toán
+function setPaid(id,val){
+  const s=db.sales.find(x=>x.id===id); if(!s) return;
+  s.paid = (val==="1"||val===1||val===true);
+  save(); renderAll();
+  toast(s.paid?"✅ Đã đánh dấu ĐÃ thanh toán":"❌ Đã đánh dấu CHƯA thanh toán");
+}
+// ô chọn sửa được ngay trong bảng đơn bán gần đây
+function paySelect(s){
+  const paid=isPaid(s);
+  return `<select class="pay-edit ${paid?'paid':'unpaid'}" ${owner?'':'disabled'} onchange="setPaid('${s.id}',this.value)">`+
+    `<option value="1" ${paid?'selected':''}>✅ Đã TT</option>`+
+    `<option value="0" ${!paid?'selected':''}>❌ Chưa TT</option></select>`;
+}
+
+// GIỎ ĐƠN đang tạo (chưa lưu vào db) — mỗi khách 1 đơn, gồm nhiều dòng thương hiệu
+let draft = [];
+function draftQtyOut(pid,cid){ return draft.filter(l=>l.productId===pid && (l.colorId||"")===(cid||"")).reduce((a,l)=>a+l.qty+l.gift+l.defect,0); }
+
+function onSaleItemChange(){
+  const p=db.products.find(x=>x.id===$("saleItem").value);
+  if(p) $("salePrice").value=p.price;
+  fillColorSelect("saleColor", $("saleItem").value);
+  updateSaleStock();
+}
+function updateSaleStock(){
+  const id=$("saleItem").value, cid=$("saleColor").value;
+  // tồn còn lại của đúng thương hiệu + màu, trừ số đã đưa vào đơn đang tạo
+  $("saleStock").value = id? fmt(stockOf(id,cid)-draftQtyOut(id,cid)) : "";
+}
+function addToDraft(){
+  const pid=$("saleItem").value, colorId=$("saleColor").value;
+  const qty=parseInt($("saleQty").value)||0;
+  const gift=parseInt($("saleGift").value)||0;
+  const defect=parseInt($("saleDefect").value)||0;
+  const price=parseFloat($("salePrice").value)||0;
+  const km=parseFloat($("saleKm").value)||0;
+  const paid=$("salePay").value==="1";
+  if(!pid){ alert("Chưa có sản phẩm nào."); return; }
+  if(qty+gift+defect<=0){ alert("Nhập ít nhất 1 số lượng (bán / tặng / đổi trả)."); return; }
+  const lbl=prodName(pid)+(colorName(colorId)?" ("+colorName(colorId)+")":"");
+  const avail=stockOf(pid,colorId), already=draftQtyOut(pid,colorId), need=already+qty+gift+defect;
+  if(need>avail){
+    alert(`⛔ KHÔNG ĐỦ HÀNG.\n\n${lbl} còn ${avail} chai. Đơn đang có ${already} chai, thêm dòng này thành ${need} chai — vượt tồn.`);
+    return;
+  }
+  draft.push({productId:pid,colorId,qty,price,km,gift,defect,paid});
+  $("saleQty").value=""; $("saleKm").value="0"; $("saleGift").value="0"; $("saleDefect").value="0";
+  renderDraft(); updateSaleStock();
+}
+function removeDraft(i){ draft.splice(i,1); renderDraft(); updateSaleStock(); }
+function renderDraft(){
+  let tot=0;
+  const rows=draft.map((l,i)=>{ const rev=Math.max(0,l.qty*l.price-(l.km||0)); tot+=rev;
+    const payPill = (l.paid!==false)?`<span class="pill paid">✅ Đã TT</span>`:`<span class="pill unpaid">❌ Chưa TT</span>`;
+    return `<tr><td>${prodName(l.productId)}</td><td class="muted">${colorName(l.colorId)||"—"}</td><td class="num">${fmt(l.qty)}</td><td class="num muted">${fmt(l.price)}</td>
+      <td>${payPill}</td>
+      <td class="num gold-t">${l.km?("-"+fmt(l.km)):"—"}</td><td class="num gold-t">${l.gift?("🎁 "+fmt(l.gift)):"—"}</td>
+      <td class="num red-t">${l.defect?("🔁 "+fmt(l.defect)):"—"}</td><td class="num green-t" style="font-weight:700">${fmt(rev)}</td>
+      <td><button class="mini" onclick="removeDraft(${i})">Bỏ</button></td></tr>`; }).join("");
+  $("draftTable").innerHTML=`<tr><th>Thương hiệu</th><th>Màu</th><th class="num">SL bán</th><th class="num">Đơn giá</th><th>💳 TT</th><th class="num">KM</th><th class="num">🎁 Tặng</th><th class="num">🔁 Hư</th><th class="num">Thành tiền</th><th></th></tr>`+
+    (draft.length? rows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG ĐƠN</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="num green-t">${fmt(tot)}</td><td></td></tr>`
+      :`<tr><td colspan="10" class="empty">Chưa có thương hiệu nào trong đơn. Chọn ở trên rồi bấm ➕ Thêm vào đơn.</td></tr>`);
+  $("saveOrderBtn").textContent = draft.length? `💾 Lưu cả đơn (${draft.length} dòng)` : "💾 Lưu cả đơn";
+}
+function saveOrder(){
+  if(!draft.length){ alert("Đơn chưa có dòng nào. Bấm ➕ Thêm vào đơn trước khi lưu."); return; }
+  // kiểm tra tồn theo từng thương hiệu + màu (phòng khi tồn đổi trong lúc tạo)
+  const needBy={};
+  draft.forEach(l=>{ const k=l.productId+"|"+(l.colorId||""); needBy[k]=(needBy[k]||0)+l.qty+l.gift+l.defect; });
+  for(const k in needBy){ const [pid,cid]=k.split("|"); if(needBy[k]>stockOf(pid,cid)){
+    const lbl=prodName(pid)+(colorName(cid)?" ("+colorName(cid)+")":"");
+    alert(`⛔ KHÔNG ĐỦ HÀNG.\n\n${lbl} còn ${stockOf(pid,cid)} chai nhưng cả đơn cần ${needBy[k]} chai.`); return; } }
+  const date=$("saleDate").value||todayStr(), note=$("saleNote").value.trim(), oid=nid("od");
+  const custName=$("custName").value.trim(), custPhone=$("custPhone").value.trim(), custAddr=$("custAddr").value.trim(), seller=$("seller").value.trim();
+  draft.forEach(l=>{ db.sales.push({id:nid("sl"),orderId:oid,date,productId:l.productId,colorId:l.colorId||"",qty:l.qty,price:l.price,km:l.km,gift:l.gift,defect:l.defect,paid:(l.paid!==false),note,custName,custPhone,custAddr,seller}); });
+  save();
+  const n=draft.length; draft=[]; $("saleNote").value=""; $("custName").value=""; $("custPhone").value=""; $("custAddr").value=""; $("seller").value=""; $("salePay").value="1";
+  renderDraft(); updateSaleStock();
+  toast(`Đã lưu đơn ${n} dòng`); renderAll();
+}
+// Gõ SĐT khách cũ -> tự hiện Tên + Địa chỉ đã lưu
+function custByPhone(phone){
+  phone=(phone||"").trim(); if(!phone) return null;
+  let best=null;
+  db.sales.forEach(s=>{ if((s.custPhone||"").trim()===phone){ if(!best || (s.date+s.id) > (best.date+best.id)) best=s; } });
+  return best ? {name:best.custName||"", addr:best.custAddr||""} : null;
+}
+function onPhoneLookup(){
+  const c=custByPhone($("custPhone").value);
+  if(c){ if(c.name) $("custName").value=c.name; if(c.addr) $("custAddr").value=c.addr; }
+}
+
+/* ========================= CÀI ĐẶT ========================= */
+function addProduct(){
+  const name=$("npName").value.trim(), price=parseFloat($("npPrice").value)||0;
+  if(!name){ alert("Nhập tên thương hiệu."); return; }
+  db.products.push({id:nid("p"),name,price,brand:name});
+  save(); $("npName").value=""; $("npPrice").value="";
+  toast("Đã thêm sản phẩm"); renderAll();
+}
+function delProduct(id){
+  const used = db.production.some(r=>r.productId===id) || db.sales.some(r=>r.productId===id);
+  if(used){ alert("Sản phẩm này đã có phát sinh sản xuất/bán hàng, không xoá được để giữ số liệu. Có thể sửa tên/giá."); return; }
+  if(!confirm("Xoá sản phẩm này?")) return;
+  db.products=db.products.filter(p=>p.id!==id); save(); renderAll();
+}
+function editProduct(id,field,val){
+  const p=db.products.find(x=>x.id===id); if(!p) return;
+  if(field==="price") p.price=parseFloat(val)||0; else p.name=val.trim()||p.name;
+  save(); renderAll();
+}
+function addMaterial(){
+  const name=$("nmName").value.trim(), unit=$("nmUnit").value.trim()||"đv";
+  if(!name){ alert("Nhập tên nguyên liệu."); return; }
+  db.materials.push({id:nid("m"),name,unit});
+  save(); $("nmName").value="";
+  toast("Đã thêm nguyên liệu"); renderAll();
+}
+function delMaterial(id){
+  if(db.materialTx.some(r=>r.materialId===id)){ alert("Nguyên liệu này đã có phát sinh nhập/xuất, không xoá được."); return; }
+  if(!confirm("Xoá nguyên liệu này?")) return;
+  db.materials=db.materials.filter(m=>m.id!==id); save(); renderAll();
+}
+
+/* ---------- xoá dòng lịch sử ---------- */
+function delRow(kind,id){
+  if(!confirm("Xoá dòng này? Số liệu tồn kho sẽ tính lại.")) return;
+  if(kind==="mt") db.materialTx=db.materialTx.filter(r=>r.id!==id);
+  if(kind==="pr") db.production=db.production.filter(r=>r.id!==id);
+  if(kind==="sl") db.sales=db.sales.filter(r=>r.id!==id);
+  save(); renderAll();
+}
+
+/* ========================= SAO LƯU ========================= */
+function exportData(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="saoluu_kho_ink_"+todayStr()+".json";
+  a.click();
+}
+function importData(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result);
+    if(!d.products) throw 0;
+    if(!confirm("Nhập file này sẽ THAY THẾ toàn bộ dữ liệu hiện tại. Tiếp tục?")) return;
+    db=d; save(); renderAll(); toast("Đã nhập dữ liệu");
+  }catch(e){ alert("File không hợp lệ."); } };
+  r.readAsText(f); ev.target.value="";
+}
+function resetAll(){
+  if(!confirm("Xoá SẠCH toàn bộ dữ liệu và về mặc định? Nên xuất sao lưu trước.")) return;
+  if(!confirm("Chắc chắn xoá? Không hoàn tác được.")) return;
+  localStorage.removeItem(KEY); db=load(); save(); renderAll(); toast("Đã xoá sạch");
+}
+
+/* ========================= RENDER ========================= */
+function fillSelect(sel,list,valKey,txtKey,keepFirst){
+  const cur=sel.value;
+  sel.innerHTML = (keepFirst?"":"") + list.map(o=>`<option value="${o[valKey]}">${o[txtKey]}</option>`).join("");
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+}
+// Đổ danh sách MÀU vào 1 ô select theo thương hiệu của sản phẩm đang chọn
+function fillColorSelect(selId, pid){
+  const sel=$(selId); if(!sel) return;
+  const cur=sel.value;
+  const cols=colorsOfBrand(brandOf(pid));
+  sel.innerHTML = cols.length
+    ? cols.map(c=>`<option value="${c.id}">${colorName(c.id)}</option>`).join("")
+    : `<option value="">(không có màu)</option>`;
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+}
+
+function renderSelects(){
+  fillSelect($("mtxMat"), db.materials, "id","name");
+  fillSelect($("prodItem"), db.products, "id","name");
+  fillSelect($("saleItem"), db.products, "id","name");
+  fillColorSelect("prodColor", $("prodItem").value);
+  fillColorSelect("saleColor", $("saleItem").value);
+  // giá mặc định + tồn hiện tại cho tab bán hàng
+  if(!$("salePrice").value){ const p=db.products.find(x=>x.id===$("saleItem").value); if(p) $("salePrice").value=p.price; }
+  updateSaleStock();
+}
+
+function renderTongquan(){
+  $("todayLabel").textContent = "· " + new Date().toLocaleDateString("vi-VN");
+  const t = todayStr(), m = monthStr();
+  let revToday=0, revMonth=0, giftMonth=0, defectMonth=0, soldMonth=0;
+  db.sales.forEach(s=>{
+    if(s.date===t) revToday += saleRev(s);
+    if(s.date.slice(0,7)===m){ revMonth+=saleRev(s); giftMonth+=(s.gift||0); defectMonth+=(s.defect||0); soldMonth+=s.qty; }
+  });
+  let totalStock=0; db.products.forEach(p=>totalStock+=stockOf(p.id));
+  $("statBoxes").innerHTML = `
+    <div class="box owner-only"><div class="k">Doanh thu HÔM NAY</div><div class="v green-t">${fmt(revToday)} đ</div></div>
+    <div class="box owner-only"><div class="k">Doanh thu THÁNG NÀY</div><div class="v blue-t">${fmt(revMonth)} đ</div></div>
+    <div class="box"><div class="k">Đã bán tháng này (chai)</div><div class="v">${fmt(soldMonth)}</div></div>
+    <div class="box"><div class="k">🎁 Hàng tặng tháng này</div><div class="v gold-t">${fmt(giftMonth)}</div></div>
+    <div class="box"><div class="k">🔁 Hư đổi trả tháng này</div><div class="v red-t">${fmt(defectMonth)}</div></div>
+    <div class="box"><div class="k">Tổng tồn kho (chai)</div><div class="v purple-t">${fmt(totalStock)}</div></div>`;
+
+  // bảng tồn kho thành phẩm — theo từng màu, có lọc thương hiệu
+  const bf=$("stockBrandFilter");
+  fillSelect(bf, [{id:"",name:"Tất cả (chỉ màu đã phát sinh)"}].concat(getBrands().map(b=>({id:b,name:b}))), "id","name");
+  const filterBrand=bf.value;
+  const lines=[];
+  db.products.forEach(p=>{
+    const brand=p.brand||p.name;
+    if(filterBrand && brand!==filterBrand) return;
+    const cols=colorsOfBrand(brand);
+    if(cols.length){
+      cols.forEach(c=>{ if(filterBrand===brand || hasActivity(p.id,c.id)) lines.push({p, cid:c.id}); });
+    } else {
+      if(!filterBrand || hasActivity(p.id,"") || true) lines.push({p, cid:""});
+    }
+  });
+  const rows = lines.map(({p,cid})=>{
+    const s=stockOf(p.id,cid);
+    const pill = s<=0?`<span class="pill zero">Hết hàng</span>` : `<span class="pill ok">Còn hàng</span>`;
+    const warn = (s>0 && s<=LOW_STOCK)?`<span class="pill warn">⚠️ Sắp hết hàng</span>` : `<span class="muted">—</span>`;
+    return `<tr><td>${p.name}</td><td>${colorName(cid)||"—"}</td><td class="num" style="font-weight:800">${fmt(s)}</td><td>${pill}</td><td>${warn}</td><td class="num muted">${fmt(p.price)} đ</td></tr>`;
+  }).join("");
+  $("stockTable").innerHTML =
+    `<tr><th>Thương hiệu</th><th>Màu</th><th class="num">Tồn (chai)</th><th>Trạng thái</th><th>Cảnh báo</th><th class="num">Giá bán</th></tr>` +
+    (rows || `<tr><td colspan="6" class="empty">Chưa có màu nào phát sinh. Chọn 1 thương hiệu ở trên để xem đủ danh sách màu.</td></tr>`);
+
+  renderMatStock("matStockTable"); renderMatStock("matStockTable2");
+}
+
+function renderMatStock(tid){
+  const el=$(tid); if(!el) return;
+  if(db.materials.length===0){ el.innerHTML=`<tr><td class="empty">Chưa có nguyên liệu. Vào ⚙️ để thêm.</td></tr>`; return; }
+  const rows=db.materials.map(m=>{
+    const s=matStockOf(m.id);
+    const cls = s<=0?"red-t":"";
+    return `<tr><td>${m.name}</td><td class="num ${cls}" style="font-weight:800">${fmt(s)}</td><td class="muted">${m.unit}</td></tr>`;
+  }).join("");
+  el.innerHTML=`<tr><th>Nguyên liệu</th><th class="num">Còn lại</th><th>Đơn vị</th></tr>`+rows;
+}
+
+function recent(arr){ return [...arr].sort((a,b)=> (b.date+b.id).localeCompare(a.date+a.id)).slice(0,50); }
+
+function renderNguyenlieu(){
+  const rows=recent(db.materialTx).map(r=>{
+    const t = r.type==="in"?`<span class="pill ok">Nhập</span>`:`<span class="pill zero">Xuất</span>`;
+    return `<tr><td>${fmtDate(r.date)}</td><td>${matName(r.materialId)}</td><td>${t}</td>
+      <td class="num">${fmt(r.qty)} ${matUnit(r.materialId)}</td><td class="muted">${r.note||""}</td>
+      <td><button class="mini owner-only" onclick="delRow('mt','${r.id}')">Xoá</button></td></tr>`;
+  }).join("");
+  $("matTxTable").innerHTML=`<tr><th>Ngày</th><th>Nguyên liệu</th><th>Thao tác</th><th class="num">SL</th><th>Ghi chú</th><th></th></tr>`+
+    (rows||`<tr><td colspan="6" class="empty">Chưa có ghi nhận nào.</td></tr>`);
+}
+
+function renderSanxuat(){
+  // Bảng tổng sản lượng theo tháng — tất cả thương hiệu, cộng dồn các ngày
+  const pm=$("prodMonthPick").value||monthStr(); $("prodMonthPick").value=pm;
+  const pmap={};
+  db.production.forEach(r=>{ if(r.date.slice(0,7)===pm) pmap[r.productId]=(pmap[r.productId]||0)+r.qty; });
+  let tot=0;
+  const prows=db.products.map(p=>{ const q=pmap[p.id]||0; tot+=q;
+    return `<tr><td>${p.name}</td><td class="num" style="font-weight:800">${fmt(q)}</td></tr>`; }).join("");
+  $("prodMonthTable").innerHTML=`<tr><th>Thương hiệu</th><th class="num">SL sản xuất trong tháng ${pm.slice(5,7)}/${pm.slice(0,4)}</th></tr>`+
+    (db.products.length? prows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG SẢN LƯỢNG</td><td class="num purple-t">${fmt(tot)}</td></tr>`
+      :`<tr><td colspan="2" class="empty">Chưa có sản phẩm.</td></tr>`);
+
+  // Lịch sử lô sản xuất gần đây
+  const rows=recent(db.production).map(r=>
+    `<tr><td>${fmtDate(r.date)}</td><td>${prodName(r.productId)}</td><td class="muted">${colorName(r.colorId)||"—"}</td><td class="num" style="font-weight:700">+${fmt(r.qty)}</td>
+     <td class="muted">${r.note||""}</td><td><button class="mini owner-only" onclick="delRow('pr','${r.id}')">Xoá</button></td></tr>`).join("");
+  $("prodTable").innerHTML=`<tr><th>Ngày</th><th>Thương hiệu</th><th>Màu</th><th class="num">SL làm ra</th><th>Ghi chú</th><th></th></tr>`+
+    (rows||`<tr><td colspan="6" class="empty">Chưa có lô sản xuất nào.</td></tr>`);
+}
+
+// Xuất TOÀN BỘ lịch sử sản xuất + bảng đối soát tồn kho (CSV, xem offline không cần web)
+function exportSanxuat(){
+  if(!db.production.length){ alert("Chưa có lô sản xuất nào để xuất."); return; }
+  const rows=[
+    ["LỊCH SỬ SẢN XUẤT — xuất ngày "+fmtDate(todayStr())],
+    [],
+    ["Ngày","Thương hiệu","Màu","Số lượng làm ra (chai)","Ghi chú"]
+  ];
+  let tongSX=0;
+  const sorted=[...db.production].sort((a,b)=>(a.date+a.id).localeCompare(b.date+b.id)); // cũ -> mới
+  sorted.forEach(r=>{ tongSX+=r.qty; rows.push([fmtDate(r.date), prodName(r.productId), colorName(r.colorId)||"—", r.qty, r.note||""]); });
+  rows.push(["","","TỔNG ĐÃ SẢN XUẤT",tongSX,""]);
+  // Bảng đối soát tồn kho — theo từng màu
+  rows.push([]);
+  rows.push(["ĐỐI SOÁT TỒN KHO — tính đến "+fmtDate(todayStr())]);
+  rows.push(["Thương hiệu","Màu","Tổng đã sản xuất","Đã xuất (bán+tặng+hư)","Tồn còn lại (nên có ở kho)"]);
+  const seen={}, pairs=[];
+  [...db.production, ...db.sales].forEach(r=>{ const k=r.productId+"|"+(r.colorId||""); if(!seen[k]){ seen[k]=1; pairs.push({pid:r.productId, cid:r.colorId||""}); } });
+  pairs.sort((a,b)=>{ const ia=db.products.findIndex(p=>p.id===a.pid), ib=db.products.findIndex(p=>p.id===b.pid); return ia!==ib? ia-ib : colorName(a.cid).localeCompare(colorName(b.cid)); });
+  pairs.forEach(({pid,cid})=>{
+    let sx=0, xuat=0;
+    db.production.forEach(r=>{ if(r.productId===pid && (r.colorId||"")===cid) sx+=r.qty; });
+    db.sales.forEach(s=>{ if(s.productId===pid && (s.colorId||"")===cid) xuat+=(s.qty+(s.gift||0)+(s.defect||0)); });
+    rows.push([prodName(pid), colorName(cid)||"—", sx, xuat, sx-xuat]);
+  });
+  const csv="﻿"+rows.map(r=>r.map(c=>{const s=String(c);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="lichsu_sanxuat_"+todayStr()+".csv"; a.click();
+  toast("Đã xuất lịch sử sản xuất ("+db.production.length+" lô)");
+}
+
+function renderBanhang(){
+  const rows=recent(db.sales).map(r=>{
+    return `<tr><td>${fmtDate(r.date)}</td><td>${prodName(r.productId)}</td><td class="muted">${colorName(r.colorId)||"—"}</td><td class="num">${fmt(r.qty)}</td>
+      <td class="num muted">${fmt(r.price)}</td><td class="num gold-t">${r.km?("-"+fmt(r.km)):"—"}</td>
+      <td class="num green-t" style="font-weight:700">${fmt(saleRev(r))}</td>
+      <td>${paySelect(r)}</td>
+      <td class="num gold-t">${r.gift?("🎁 "+fmt(r.gift)):"—"}</td>
+      <td class="num red-t">${r.defect?("🔁 "+fmt(r.defect)):"—"}</td>
+      <td class="muted">${r.note||""}</td>
+      <td><button class="mini owner-only" onclick="delRow('sl','${r.id}')">Xoá</button></td></tr>`;
+  }).join("");
+  $("saleTable").innerHTML=`<tr><th>Ngày</th><th>Thương hiệu</th><th>Màu</th><th class="num">SL bán</th><th class="num">Đơn giá</th><th class="num">KM</th><th class="num">Thành tiền</th><th>💳 Thanh toán</th><th class="num">🎁 Tặng</th><th class="num">🔁 Hư</th><th>Ghi chú</th><th></th></tr>`+
+    (rows||`<tr><td colspan="12" class="empty">Chưa có đơn bán nào.</td></tr>`);
+}
+
+/* ========================= KHÁCH HÀNG ========================= */
+// Gộp các dòng bán theo mã đơn (đơn cũ không có mã thì lấy id dòng làm đơn riêng)
+function orderGroups(){
+  const g={};
+  db.sales.forEach(s=>{ const k=s.orderId||s.id;
+    if(!g[k]) g[k]={key:k,date:s.date,name:s.custName||"",phone:s.custPhone||"",addr:s.custAddr||"",seller:s.seller||"",total:0,prods:{}};
+    g[k].total+=saleRev(s); g[k].prods[s.productId]=(g[k].prods[s.productId]||0)+s.qty;
+    if(!g[k].name && s.custName) g[k].name=s.custName;
+    if(!g[k].phone && s.custPhone) g[k].phone=s.custPhone;
+    if(!g[k].addr && s.custAddr) g[k].addr=s.custAddr;
+    if(!g[k].seller && s.seller) g[k].seller=s.seller;
+    if(s.date>g[k].date) g[k].date=s.date;
+  });
+  return Object.values(g).sort((a,b)=>(b.date+b.key).localeCompare(a.date+a.key));
+}
+function fillDatalist(id,vals){ const el=$(id); if(!el) return;
+  el.innerHTML=[...new Set(vals.filter(Boolean))].map(v=>`<option value="${String(v).replace(/"/g,'&quot;')}">`).join(""); }
+function renderDatalists(){
+  fillDatalist("dlCust", db.sales.map(s=>s.custName));
+  fillDatalist("dlPhone", db.sales.map(s=>s.custPhone));
+  fillDatalist("dlAddr", db.sales.map(s=>s.custAddr));
+  fillDatalist("dlSeller", db.sales.map(s=>s.seller));
+}
+function renderKhach(){
+  const orders=orderGroups();
+  // Bảng khách hàng theo đơn (+ lọc tìm kiếm)
+  const q=($("custSearch").value||"").trim().toLowerCase();
+  const shown=q? orders.filter(o=>o.name.toLowerCase().includes(q)||o.phone.toLowerCase().includes(q)||(o.addr||"").toLowerCase().includes(q)) : orders;
+  const crows=shown.map(o=>
+    `<tr><td>${fmtDate(o.date)}</td><td>${o.name||"—"}</td><td>${o.phone||"—"}</td><td>${o.addr||"—"}</td><td>${o.seller||"—"}</td>
+      <td class="num">${Object.keys(o.prods).length}</td>
+      <td class="num green-t" style="font-weight:700">${fmt(o.total)}</td></tr>`).join("");
+  $("custTable").innerHTML=`<tr><th>Ngày mua</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Người bán</th><th class="num">Số thương hiệu</th><th class="num">Tổng giá trị đơn</th></tr>`+
+    (shown.length? crows : `<tr><td colspan="7" class="empty">${orders.length?"Không tìm thấy khách phù hợp.":"Chưa có đơn nào."}</td></tr>`);
+
+  // Bảng hiệu quả người bán
+  const m=$("sellerMonth").value||monthStr();
+  const smap={};
+  orders.forEach(o=>{ const name=o.seller||"(chưa ghi tên sale)";
+    smap[name]=smap[name]||{ordM:0,revM:0,ordA:0,revA:0};
+    smap[name].ordA++; smap[name].revA+=o.total;
+    if(o.date.slice(0,7)===m){ smap[name].ordM++; smap[name].revM+=o.total; }
+  });
+  const list=Object.entries(smap).sort((a,b)=>b[1].revA-a[1].revA);
+  let TM=0,TA=0,OM=0,OA=0;
+  const srows=list.map(([name,x])=>{ TM+=x.revM;TA+=x.revA;OM+=x.ordM;OA+=x.ordA;
+    return `<tr><td style="font-weight:600">${name}</td><td class="num">${fmt(x.ordM)}</td><td class="num green-t">${fmt(x.revM)}</td>
+      <td class="num">${fmt(x.ordA)}</td><td class="num green-t" style="font-weight:800">${fmt(x.revA)}</td></tr>`; }).join("");
+  $("sellerTable").innerHTML=`<tr><th>Người bán</th><th class="num">Đơn tháng ${m.slice(5,7)}/${m.slice(0,4)}</th><th class="num">Doanh thu tháng</th><th class="num">Tổng số đơn</th><th class="num">Tổng doanh thu</th></tr>`+
+    (list.length? srows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG</td><td class="num">${fmt(OM)}</td><td class="num green-t">${fmt(TM)}</td><td class="num">${fmt(OA)}</td><td class="num green-t">${fmt(TA)}</td></tr>`
+      :`<tr><td colspan="5" class="empty">Chưa có đơn bán nào.</td></tr>`);
+}
+// Xuất TOÀN BỘ data khách hàng ra Excel (CSV) — lưu trữ offline
+function exportKhach(){
+  const orders=orderGroups();
+  if(!orders.length){ alert("Chưa có đơn khách hàng nào để xuất."); return; }
+  const rows=[
+    ["DATA KHÁCH HÀNG — xuất ngày "+fmtDate(todayStr())],
+    [],
+    ["Ngày mua","Tên khách","SĐT","Địa chỉ","Người bán","Số thương hiệu","Tổng giá trị đơn (đ)","Chi tiết thương hiệu (SL)"]
+  ];
+  let tong=0;
+  orders.forEach(o=>{ tong+=o.total;
+    const detail=Object.entries(o.prods).map(([pid,qty])=>prodName(pid)+" x"+qty).join(" | ");
+    // SĐT bọc dạng text để Excel không mất số 0 ở đầu
+    const phone = o.phone? ('="'+o.phone+'"') : "";
+    rows.push([fmtDate(o.date), o.name||"", phone, o.addr||"", o.seller||"", Object.keys(o.prods).length, o.total, detail]);
+  });
+  rows.push(["TỔNG","","","","","",tong,""]);
+  const csv="﻿"+rows.map(r=>r.map(c=>{const s=String(c);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="data_khachhang_"+todayStr()+".csv"; a.click();
+  toast("Đã xuất data khách hàng ("+orders.length+" đơn)");
+}
+
+/* ---- Doanh thu ngày ---- */
+function renderDay(){
+  const d=$("dayPick").value||todayStr(); $("dayPick").value=d;
+  const map={};
+  db.sales.forEach(s=>{ if(s.date===d){
+    const k=s.productId; map[k]=map[k]||{qty:0,rev:0,gift:0,defect:0};
+    map[k].qty+=s.qty; map[k].rev+=saleRev(s); map[k].gift+=(s.gift||0); map[k].defect+=(s.defect||0);
+  }});
+  let tq=0,tr=0,tg=0,td=0;
+  const rows=db.products.map(p=>{const x=map[p.id]||{qty:0,rev:0,gift:0,defect:0};tq+=x.qty;tr+=x.rev;tg+=x.gift;td+=x.defect;
+    return `<tr><td>${p.name}</td><td class="num">${fmt(x.qty)}</td><td class="num gold-t">${fmt(x.gift)}</td>
+      <td class="num red-t">${fmt(x.defect)}</td><td class="num green-t" style="font-weight:700">${fmt(x.rev)}</td></tr>`;}).join("");
+  $("dayTable").innerHTML=`<tr><th>Thương hiệu</th><th class="num">SL bán</th><th class="num">🎁 Tặng</th><th class="num">🔁 Đổi</th><th class="num">Doanh thu</th></tr>`+
+    (db.products.length?rows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG</td><td class="num">${fmt(tq)}</td><td class="num gold-t">${fmt(tg)}</td><td class="num red-t">${fmt(td)}</td><td class="num green-t">${fmt(tr)}</td></tr>`
+      :`<tr><td colspan="5" class="empty">Chưa có sản phẩm.</td></tr>`);
+}
+
+/* ---- Doanh thu tháng ---- */
+function renderMonth(){
+  const m=$("monthPick").value||monthStr(); $("monthPick").value=m;
+  const map={};
+  db.sales.forEach(s=>{ if(s.date.slice(0,7)===m){
+    const k=s.productId; map[k]=map[k]||{qty:0,rev:0,gift:0,defect:0};
+    map[k].qty+=s.qty; map[k].rev+=saleRev(s); map[k].gift+=(s.gift||0); map[k].defect+=(s.defect||0);
+  }});
+  let tq=0,tr=0,tg=0,td=0;
+  const rows=db.products.map(p=>{const x=map[p.id]||{qty:0,rev:0,gift:0,defect:0};tq+=x.qty;tr+=x.rev;tg+=x.gift;td+=x.defect;
+    return `<tr><td>${p.name}</td><td class="num">${fmt(x.qty)}</td><td class="num gold-t">${fmt(x.gift)}</td>
+      <td class="num red-t">${fmt(x.defect)}</td><td class="num green-t" style="font-weight:700">${fmt(x.rev)}</td></tr>`;}).join("");
+  $("monthTable").innerHTML=`<tr><th>Thương hiệu</th><th class="num">SL bán</th><th class="num">🎁 Tặng</th><th class="num">🔁 Đổi</th><th class="num">Doanh thu</th></tr>`+
+    (db.products.length?rows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG THÁNG</td><td class="num">${fmt(tq)}</td><td class="num gold-t">${fmt(tg)}</td><td class="num red-t">${fmt(td)}</td><td class="num green-t">${fmt(tr)}</td></tr>`
+      :`<tr><td colspan="5" class="empty">Chưa có sản phẩm.</td></tr>`);
+}
+
+/* ---- Doanh thu năm ---- */
+function renderYear(){
+  const y=parseInt($("yearPick").value)||new Date().getFullYear(); $("yearPick").value=y;
+  const months=Array(12).fill(0), gifts=Array(12).fill(0);
+  db.sales.forEach(s=>{ if(s.date.slice(0,4)==String(y)){
+    const mi=parseInt(s.date.slice(5,7))-1; months[mi]+=saleRev(s); gifts[mi]+=(s.gift||0);
+  }});
+  let total=0,tg=0;
+  const rows=months.map((v,i)=>{total+=v;tg+=gifts[i];
+    return `<tr><td>Tháng ${i+1}</td><td class="num gold-t">${fmt(gifts[i])}</td><td class="num green-t" style="font-weight:700">${fmt(v)}</td></tr>`;}).join("");
+  $("yearTable").innerHTML=`<tr><th>Tháng</th><th class="num">🎁 Tặng</th><th class="num">Doanh thu</th></tr>`+rows+
+    `<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>CẢ NĂM ${y}</td><td class="num gold-t">${fmt(tg)}</td><td class="num green-t">${fmt(total)}</td></tr>`;
+}
+
+/* ---- Báo cáo doanh thu tổng hợp (tháng · quý · khoảng ngày) ---- */
+function repParams(){
+  const Y=new Date().getFullYear();
+  const m=$("repMonth").value||monthStr();
+  const q=parseInt($("repQuarter").value)||1, qy=parseInt($("repQtrYear").value)||Y;
+  const from=$("repFrom").value, to=$("repTo").value;
+  return { m, q, qy, qlo:(q-1)*3+1, qhi:q*3, from, to,
+    mLabel:m.slice(5,7)+"/"+m.slice(0,4), qLabel:"Q"+q+"/"+qy,
+    rLabel:(fmtDate(from)||"…")+" → "+(fmtDate(to)||"…") };
+}
+function buildReport(){
+  const P=repParams(), acc={};
+  db.products.forEach(p=>acc[p.id]={revM:0,revQ:0,revR:0,qtyM:0,qtyQ:0,giftM:0,defM:0});
+  db.sales.forEach(s=>{ const a=acc[s.productId]; if(!a) return; const d=s.date;
+    if(d.slice(0,7)===P.m){ a.revM+=saleRev(s); a.qtyM+=s.qty; a.giftM+=(s.gift||0); a.defM+=(s.defect||0); }
+    if(d.slice(0,4)==String(P.qy)){ const mm=+d.slice(5,7); if(mm>=P.qlo&&mm<=P.qhi){ a.revQ+=saleRev(s); a.qtyQ+=s.qty; } }
+    if(P.from||P.to){ if((!P.from||d>=P.from)&&(!P.to||d<=P.to)){ a.revR+=saleRev(s); } }
+  });
+  return {P, acc};
+}
+function renderReport(){
+  const {P,acc}=buildReport();
+  const H=`<tr><th>Thương hiệu</th><th>ML</th>
+    <th class="num">Tiền tháng ${P.mLabel}</th><th class="num">Tiền ${P.qLabel}</th><th class="num">Tiền ${P.rLabel}</th>
+    <th class="num">SL bán tháng</th><th class="num">SL bán quý</th>
+    <th class="num">🎁 Tặng (tháng)</th><th class="num">🔁 Hư hỏng (tháng)</th></tr>`;
+  const T={revM:0,revQ:0,revR:0,qtyM:0,qtyQ:0,giftM:0,defM:0};
+  const rows=db.products.map(p=>{ const a=acc[p.id], sp=splitML(p.name);
+    for(const k in T) T[k]+=a[k];
+    return `<tr><td>${sp.brand}</td><td class="muted">${sp.ml||"—"}</td>
+      <td class="num green-t">${fmt(a.revM)}</td><td class="num green-t">${fmt(a.revQ)}</td><td class="num green-t">${fmt(a.revR)}</td>
+      <td class="num">${fmt(a.qtyM)}</td><td class="num">${fmt(a.qtyQ)}</td>
+      <td class="num gold-t">${fmt(a.giftM)}</td><td class="num red-t">${fmt(a.defM)}</td></tr>`; }).join("");
+  $("repTable").innerHTML=H+(db.products.length?
+    rows+`<tr style="font-weight:800;border-top:2px solid var(--accent)"><td>TỔNG</td><td>—</td>
+      <td class="num green-t">${fmt(T.revM)}</td><td class="num green-t">${fmt(T.revQ)}</td><td class="num green-t">${fmt(T.revR)}</td>
+      <td class="num">${fmt(T.qtyM)}</td><td class="num">${fmt(T.qtyQ)}</td>
+      <td class="num gold-t">${fmt(T.giftM)}</td><td class="num red-t">${fmt(T.defM)}</td></tr>`
+    :`<tr><td colspan="9" class="empty">Chưa có sản phẩm.</td></tr>`);
+}
+function exportReport(){
+  const {P,acc}=buildReport();
+  const rows=[
+    ["BÁO CÁO DOANH THU TỔNG HỢP"],
+    ["Tháng: "+P.mLabel, "Quý: "+P.qLabel, "Khoảng ngày: "+P.rLabel],
+    [],
+    ["Thương hiệu","ML","Tiền tháng "+P.mLabel+" (đ)","Tiền "+P.qLabel+" (đ)","Tiền "+P.rLabel+" (đ)",
+     "SL bán tháng","SL bán quý","Hàng tặng (tháng)","Hàng hư hỏng (tháng)"]
+  ];
+  const T={revM:0,revQ:0,revR:0,qtyM:0,qtyQ:0,giftM:0,defM:0};
+  db.products.forEach(p=>{ const a=acc[p.id], sp=splitML(p.name); for(const k in T) T[k]+=a[k];
+    rows.push([sp.brand, sp.ml, a.revM, a.revQ, a.revR, a.qtyM, a.qtyQ, a.giftM, a.defM]); });
+  rows.push(["TỔNG","",T.revM,T.revQ,T.revR,T.qtyM,T.qtyQ,T.giftM,T.defM]);
+  const csv="﻿"+rows.map(r=>r.map(c=>{const s=String(c);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="baocao_doanhthu_tonghop_"+todayStr()+".csv"; a.click();
+  toast("Đã xuất báo cáo tổng hợp");
+}
+
+function addColor(){
+  const brand=$("ncBrand").value, name=$("ncName").value.trim(), code=$("ncCode").value.trim();
+  if(!brand){ alert("Chưa có thương hiệu."); return; }
+  if(!name){ alert("Nhập tên màu."); return; }
+  db.colors.push({id:nid("c"),brand,name,code});
+  save(); $("ncName").value=""; $("ncCode").value="";
+  toast("Đã thêm màu"); renderAll();
+}
+function delColor(id){
+  const used = db.production.some(r=>r.colorId===id) || db.sales.some(r=>r.colorId===id);
+  if(used){ alert("Màu này đã có phát sinh sản xuất/bán hàng, không xoá được để giữ số liệu."); return; }
+  if(!confirm("Xoá màu này?")) return;
+  db.colors=db.colors.filter(c=>c.id!==id); save(); renderAll();
+}
+function stockOfColor(c){ let s=0; db.products.forEach(p=>{ if((p.brand||p.name)===c.brand) s+=stockOf(p.id,c.id); }); return s; }
+
+function renderCaidat(){
+  const pr=db.products.map(p=>
+    `<tr><td><input value="${p.name.replace(/"/g,'&quot;')}" onchange="editProduct('${p.id}','name',this.value)"></td>
+     <td style="max-width:150px"><input type="number" value="${p.price}" onchange="editProduct('${p.id}','price',this.value)"></td>
+     <td class="num muted">${fmt(stockOf(p.id))}</td>
+     <td><button class="mini" onclick="delProduct('${p.id}')">Xoá</button></td></tr>`).join("");
+  $("prodListTable").innerHTML=`<tr><th>Tên thương hiệu</th><th style="width:150px">Giá bán</th><th class="num">Tồn</th><th></th></tr>`+
+    (pr||`<tr><td colspan="4" class="empty">Chưa có sản phẩm.</td></tr>`);
+
+  // Quản lý màu
+  fillSelect($("ncBrand"), getBrands().map(b=>({id:b,name:b})), "id","name");
+  const cr=(db.colors||[]).slice().sort((a,b)=>(a.brand+a.name).localeCompare(b.brand+b.name)).map(c=>
+    `<tr><td class="muted">${c.brand}</td><td>${c.name}</td><td class="muted">${c.code||"—"}</td><td class="num muted">${fmt(stockOfColor(c))}</td>
+     <td><button class="mini" onclick="delColor('${c.id}')">Xoá</button></td></tr>`).join("");
+  $("colorListTable").innerHTML=`<tr><th>Thương hiệu</th><th>Tên màu</th><th>Mã số</th><th class="num">Tổng tồn</th><th></th></tr>`+
+    (cr||`<tr><td colspan="5" class="empty">Chưa có màu.</td></tr>`);
+
+  const mr=db.materials.map(m=>
+    `<tr><td>${m.name}</td><td class="muted">${m.unit}</td><td class="num">${fmt(matStockOf(m.id))}</td>
+     <td><button class="mini" onclick="delMaterial('${m.id}')">Xoá</button></td></tr>`).join("");
+  $("matListTable").innerHTML=`<tr><th>Nguyên liệu</th><th>Đơn vị</th><th class="num">Còn lại</th><th></th></tr>`+
+    (mr||`<tr><td colspan="4" class="empty">Chưa có nguyên liệu.</td></tr>`);
+}
+
+function renderAll(){
+  renderSelects();
+  renderTongquan();
+  renderReport();
+  renderNguyenlieu();
+  renderSanxuat();
+  renderProdDraft();
+  renderBanhang();
+  renderDraft();
+  renderDatalists();
+  renderKhach();
+  renderDay(); renderMonth(); renderYear();
+  renderCaidat();
+}
+
+/* ---------- khởi động ---------- */
+function init(){
+  migrate();
+  const t=todayStr(), m=monthStr(), y=new Date().getFullYear();
+  ["mtxDate","prodDate","saleDate"].forEach(id=>$(id).value=t);
+  $("dayPick").value=t; $("monthPick").value=m; $("yearPick").value=y;
+  $("prodMonthPick").value=m; $("sellerMonth").value=m;
+  // báo cáo tổng hợp
+  $("repMonth").value=m; $("repQtrYear").value=y;
+  $("repQuarter").value=Math.floor((new Date().getMonth())/3)+1;
+  $("repFrom").value=m+"-01"; $("repTo").value=t;
+  owner = isOwnerAccount();   // quyền theo tài khoản đăng nhập (email trong OWNER_EMAILS = CHỦ)
+  renderAll();
+  applyMode();
+}
+/* =========================================================================
+   ĐỒNG BỘ ĐÁM MÂY + ĐĂNG NHẬP (Supabase) — thêm ở bản v13, 2026-07-11
+   ========================================================================= */
+function isOwnerAccount(){ return !!currentUser && OWNER_EMAILS.includes((currentUser.email||"").toLowerCase()); }
+
+function setSync(state){
+  const el=$("syncDot"); if(!el) return;
+  if(state==="ok")  el.textContent="🟢 Đã đồng bộ";
+  else if(state==="err") el.textContent="🔴 Mất kết nối — sẽ tự lưu lại khi có mạng";
+  else el.textContent="⏳ Đang kết nối…";
+}
+
+/* ---- Đẩy dữ liệu lên mây (gộp nhiều lần lưu liên tiếp thành 1 lần) ---- */
+let pushTimer=null;
+function schedulePush(){
+  if(!cloudReady || !sb) return;      // chưa nối mây thì chỉ lưu trong máy
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(pushCloudNow, 500);
+}
+async function pushCloudNow(){
+  if(!cloudReady || !sb) return;
+  try{
+    const { error } = await sb.from("app_state")
+      .update({ data: db, updated_by: CLIENT_ID, updated_at: new Date().toISOString() })
+      .eq("id", 1);
+    if(error) throw error;
+    setSync("ok");
+  }catch(e){ console.error("push", e); setSync("err"); }
+}
+
+/* ---- Kéo dữ liệu từ mây về khi mở app ---- */
+async function pullCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from("app_state").select("data").eq("id",1).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.products){
+      db = data.data; migrate();                 // mây đã có số liệu -> dùng luôn
+      localStorage.setItem(KEY, JSON.stringify(db));
+    }else{
+      cloudReady=true; await pushCloudNow();      // mây rỗng -> đẩy dữ liệu hiện có lên
+    }
+    cloudReady=true; setSync("ok");
+  }catch(e){ console.error("pull", e); setSync("err"); toast("⚠️ Không tải được dữ liệu từ mây"); }
+}
+
+/* ---- Nghe thay đổi realtime: máy khác sửa -> máy này tự cập nhật ---- */
+function subscribeRealtime(){
+  if(!sb) return;
+  sb.channel("app_state_ch")
+    .on("postgres_changes", { event:"UPDATE", schema:"public", table:"app_state" }, payload=>{
+      const row = payload.new || {};
+      if(row.updated_by === CLIENT_ID) return;   // bỏ qua thay đổi do chính máy này gây ra
+      if(row.data && row.data.products){
+        db = row.data;
+        localStorage.setItem(KEY, JSON.stringify(db));
+        renderAll();
+        toast("🔄 Số liệu vừa cập nhật từ máy khác");
+      }
+    }).subscribe();
+}
+
+/* ---- Đăng nhập / đăng xuất ---- */
+function showLogin(msg){ const o=$("authOverlay"); if(o) o.classList.remove("hidden"); authErr(msg||""); }
+function hideLogin(){ const o=$("authOverlay"); if(o) o.classList.add("hidden"); }
+function authErr(m){ const e=$("authErr"); if(e) e.textContent=m||""; }
+async function doLogin(){
+  if(!sb){ authErr("Không tải được thư viện. Kiểm tra mạng rồi tải lại trang."); return; }
+  const email=($("authEmail").value||"").trim();
+  const pass=$("authPass").value||"";
+  if(!email||!pass){ authErr("Nhập email và mật khẩu."); return; }
+  authErr(""); const btn=$("authBtn"); btn.disabled=true; btn.textContent="Đang đăng nhập…";
+  try{
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if(error) throw error;
+    currentUser = data.user;
+    await afterLogin();
+  }catch(e){ authErr("Sai email hoặc mật khẩu."); }
+  finally{ btn.disabled=false; btn.textContent="Đăng nhập"; }
+}
+async function doLogout(){
+  if(sb){ try{ await sb.auth.signOut(); }catch(e){} }
+  location.reload();
+}
+async function afterLogin(){
+  hideLogin();
+  $("userEmail").textContent = currentUser.email || "";
+  await pullCloud();
+  subscribeRealtime();
+  init();
+}
+
+/* ---- Khởi động: kiểm tra đã đăng nhập chưa ---- */
+async function boot(){
+  if(!sb){ showLogin("Không tải được thư viện. Kiểm tra mạng rồi tải lại trang."); return; }
+  ["authEmail","authPass"].forEach(id=>{ const el=$(id); if(el) el.addEventListener("keydown",ev=>{ if(ev.key==="Enter") doLogin(); }); });
+  try{
+    const { data:{ session } } = await sb.auth.getSession();
+    if(session){ currentUser=session.user; await afterLogin(); }
+    else { showLogin(); }
+  }catch(e){ console.error(e); showLogin("Lỗi kết nối. Tải lại trang thử lại."); }
+}
+boot();
+</script>
